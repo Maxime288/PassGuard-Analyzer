@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PassGuard — Analyseur de Mot de Passe</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:       #050a0e;
+      --panel:    #0a1520;
+      --border:   #0ff3;
+      --cyan:     #00f5ff;
+      --green:    #39ff14;
+      --yellow:   #ffe135;
+      --orange:   #ff8c00;
+      --red:      #ff2244;
+      --dim:      #3a5a6a;
+      --text:     #b0d8e8;
+      --mono:     'Share Tech Mono', monospace;
+      --title:    'Orbitron', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px 60px;
+      overflow-x: hidden;
+    }
+
+    /* ── GRID BG ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(0,245,255,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,245,255,.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── SCANLINE ── */
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,.18) 2px,
+        rgba(0,0,0,.18) 4px
+      );
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .wrapper {
+      position: relative; z-index: 2;
+      width: 100%; max-width: 760px;
+    }
+
+    /* ── HEADER ── */
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .logo {
+      font-family: var(--title);
+      font-size: clamp(2rem, 6vw, 3.5rem);
+      font-weight: 900;
+      letter-spacing: .12em;
+      color: var(--cyan);
+      text-shadow: 0 0 12px var(--cyan), 0 0 40px rgba(0,245,255,.3);
+      line-height: 1;
+    }
+    .logo span { color: var(--green); text-shadow: 0 0 12px var(--green), 0 0 40px rgba(57,255,20,.3); }
+    .tagline {
+      margin-top: 10px;
+      font-size: .78rem;
+      letter-spacing: .25em;
+      color: var(--dim);
+      text-transform: uppercase;
+    }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 32px;
+      box-shadow: 0 0 0 1px #0002, 0 0 40px rgba(0,245,255,.05), inset 0 1px 0 rgba(0,245,255,.07);
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+      opacity: .6;
+    }
+
+    .section-label {
+      font-size: .65rem;
+      letter-spacing: .3em;
+      color: var(--dim);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    /* ── INPUT ZONE ── */
+    .input-wrap {
+      position: relative;
+      margin-bottom: 28px;
+    }
+    .prompt-line {
+      font-size: .75rem;
+      color: var(--cyan);
+      margin-bottom: 8px;
+      opacity: .7;
+    }
+    .prompt-line::before { content: '> '; }
+
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      background: #071018;
+      border: 1px solid var(--dim);
+      border-radius: 3px;
+      padding: 14px 50px 14px 16px;
+      font-family: var(--mono);
+      font-size: 1rem;
+      color: var(--cyan);
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      letter-spacing: .06em;
+    }
+    input:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 2px rgba(0,245,255,.1), 0 0 15px rgba(0,245,255,.08);
+    }
+
+    .toggle-eye {
+      position: absolute; right: 14px; top: 50%;
+      transform: translateY(-50%);
+      background: none; border: none;
+      color: var(--dim); cursor: pointer;
+      font-size: 1.1rem; line-height: 1;
+      transition: color .2s;
+    }
+    .toggle-eye:hover { color: var(--cyan); }
+
+    /* ── SCORE BAR ── */
+    .score-row {
+      display: flex; align-items: center; gap: 16px;
+      margin-bottom: 24px;
+    }
+    .score-bar-wrap {
+      flex: 1; height: 6px;
+      background: #0a1e28;
+      border-radius: 3px;
+      overflow: hidden;
+      border: 1px solid #0a2030;
+    }
+    .score-bar {
+      height: 100%;
+      width: 0%;
+      border-radius: 3px;
+      transition: width .4s cubic-bezier(.4,0,.2,1), background .3s;
+      background: var(--dim);
+    }
+    .score-label {
+      font-family: var(--title);
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .15em;
+      min-width: 110px;
+      text-align: right;
+      text-transform: uppercase;
+      transition: color .3s;
+    }
+
+    /* ── CRITERIA GRID ── */
+    .criteria-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 28px;
+    }
+    @media(max-width:480px) { .criteria-grid { grid-template-columns: 1fr; } }
+
+    .criterion {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      background: #071018;
+      transition: border-color .3s, background .3s;
+      font-size: .78rem;
+    }
+    .criterion.ok {
+      border-color: rgba(57,255,20,.2);
+      background: rgba(57,255,20,.04);
+    }
+    .criterion.fail {
+      border-color: rgba(255,34,68,.15);
+    }
+    .criterion .icon {
+      font-size: .95rem;
+      transition: transform .25s;
+    }
+    .criterion.ok .icon { transform: scale(1.15); }
+    .criterion .label { color: var(--text); }
+    .criterion.ok .label { color: var(--green); }
+    .criterion.fail .label { color: var(--dim); }
+
+    /* ── DIVIDER ── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 28px 0;
+    }
+
+    /* ── BRUTE-FORCE TABLE ── */
+    .bf-title {
+      font-family: var(--title);
+      font-size: .85rem;
+      font-weight: 700;
+      color: var(--cyan);
+      letter-spacing: .15em;
+      margin-bottom: 6px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .bf-sub {
+      font-size: .7rem;
+      color: var(--dim);
+      margin-bottom: 20px;
+    }
+
+    .bf-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    @media(max-width:520px) { .bf-grid { grid-template-columns: 1fr 1fr; } }
+
+    .bf-card {
+      background: #071018;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 14px 12px;
+      text-align: center;
+      transition: border-color .3s, background .3s;
+    }
+    .bf-card-icon { font-size: 1.5rem; margin-bottom: 6px; }
+    .bf-card-name {
+      font-size: .6rem;
+      letter-spacing: .2em;
+      color: var(--dim);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .bf-card-time {
+      font-family: var(--title);
+      font-size: .85rem;
+      font-weight: 700;
+      color: var(--text);
+      transition: color .3s;
+      line-height: 1.2;
+    }
+
+    /* ── ENTROPY INFO ── */
+    .entropy-row {
+      display: flex; flex-wrap: wrap; gap: 12px;
+      margin-top: 16px;
+    }
+    .entropy-pill {
+      background: #071018;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 6px 14px;
+      font-size: .7rem;
+      color: var(--text);
+    }
+    .entropy-pill span { color: var(--cyan); font-weight: bold; }
+
+    /* ── TIPS ── */
+    .tips {
+      margin-top: 28px;
+      padding: 16px;
+      background: rgba(0,245,255,.03);
+      border: 1px dashed rgba(0,245,255,.15);
+      border-radius: 3px;
+    }
+    .tips-title {
+      font-size: .65rem;
+      letter-spacing: .25em;
+      color: var(--cyan);
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .tips-list {
+      list-style: none;
+      display: flex; flex-direction: column; gap: 5px;
+    }
+    .tips-list li {
+      font-size: .75rem;
+      color: var(--dim);
+      padding-left: 12px;
+      position: relative;
+    }
+    .tips-list li::before { content: '▸ '; color: var(--cyan); position: absolute; left: 0; }
+    .tips-list li.show { color: var(--text); }
+
+    /* ── FOOTER ── */
+    footer {
+      margin-top: 36px;
+      text-align: center;
+      font-size: .65rem;
+      color: var(--dim);
+      letter-spacing: .12em;
+    }
+
+    /* ── GLITCH ANIM ── */
+    @keyframes glitch {
+      0%, 100% { clip-path: none; transform: none; }
+      92% { clip-path: none; transform: none; }
+      93% { clip-path: inset(30% 0 50% 0); transform: translateX(-4px); }
+      94% { clip-path: inset(70% 0 10% 0); transform: translateX(4px); }
+      95% { clip-path: none; transform: none; }
+    }
+    .logo { animation: glitch 6s infinite; }
+
+    /* ── BLINK CURSOR ── */
+    @keyframes blink { 50% { opacity: 0; } }
+    .cursor {
+      display: inline-block;
+      width: 8px; height: 1em;
+      background: var(--cyan);
+      margin-left: 3px;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+
+    /* ── PULSE for active score ── */
+    @keyframes pulse-glow {
+      0%,100% { box-shadow: 0 0 4px currentColor; }
+      50%      { box-shadow: 0 0 14px currentColor; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">PASS<span>GUARD</span></div>
+    <div class="tagline">Analyseur de sécurité · Client-side · No data sent</div>
+  </header>
+
+  <!-- MAIN CARD -->
+  <div class="card">
+    <div class="section-label">// Entrée du mot de passe</div>
+
+    <div class="input-wrap">
+      <div class="prompt-line">Entrez votre mot de passe</div>
+      <input id="pwInput" type="password" placeholder="••••••••••••" autocomplete="off" spellcheck="false"/>
+      <button class="toggle-eye" id="eyeBtn" title="Afficher/Masquer" aria-label="toggle visibility">👁</button>
+    </div>
+
+    <!-- SCORE BAR -->
+    <div class="score-row">
+      <div class="score-bar-wrap">
+        <div class="score-bar" id="scoreBar"></div>
+      </div>
+      <div class="score-label" id="scoreLabel">—</div>
+    </div>
+
+    <!-- CRITERIA -->
+    <div class="section-label">// Critères de complexité</div>
+    <div class="criteria-grid">
+      <div class="criterion fail" id="c-length">
+        <span class="icon">⬜</span>
+        <span class="label">8+ caractères</span>
+      </div>
+      <div class="criterion fail" id="c-upper">
+        <span class="icon">⬜</span>
+        <span class="label">Majuscule (A-Z)</span>
+      </div>
+      <div class="criterion fail" id="c-lower">
+        <span class="icon">⬜</span>
+        <span class="label">Minuscule (a-z)</span>
+      </div>
+      <div class="criterion fail" id="c-digit">
+        <span class="icon">⬜</span>
+        <span class="label">Chiffre (0-9)</span>
+      </div>
+      <div class="criterion fail" id="c-special">
+        <span class="icon">⬜</span>
+        <span class="label">Caractère spécial (!@#…)</span>
+      </div>
+      <div class="criterion fail" id="c-long">
+        <span class="icon">⬜</span>
+        <span class="label">16+ caractères (bonus)</span>
+      </div>
+    </div>
+
+    <hr class="divider"/>
+
+    <!-- BRUTE FORCE SECTION -->
+    <div class="bf-title">
+      <span>⚡</span> Temps de brute-force estimé
+    </div>
+    <div class="bf-sub">// Calculé selon l'entropie réelle — aucune donnée n'est envoyée</div>
+
+    <div class="bf-grid">
+      <div class="bf-card" id="bf-online">
+        <div class="bf-card-icon">🌐</div>
+        <div class="bf-card-name">Attaque online<br><small style="font-size:.55rem;opacity:.6">~1 000 req/s</small></div>
+        <div class="bf-card-time" id="t-online">—</div>
+      </div>
+      <div class="bf-card" id="bf-offline">
+        <div class="bf-card-icon">💻</div>
+        <div class="bf-card-name">Offline rapide<br><small style="font-size:.55rem;opacity:.6">~10⁹ hash/s</small></div>
+        <div class="bf-card-time" id="t-offline">—</div>
+      </div>
+      <div class="bf-card" id="bf-gpu">
+        <div class="bf-card-icon">🖥️</div>
+        <div class="bf-card-name">GPU cluster<br><small style="font-size:.55rem;opacity:.6">~10¹² hash/s</small></div>
+        <div class="bf-card-time" id="t-gpu">—</div>
+      </div>
+    </div>
+
+    <div class="entropy-row">
+      <div class="entropy-pill">Espace de clés : <span id="keyspace">—</span></div>
+      <div class="entropy-pill">Entropie : <span id="entropy">—</span> bits</div>
+      <div class="entropy-pill">Pool de caractères : <span id="charpool">—</span></div>
+    </div>
+
+    <!-- TIPS -->
+    <div class="tips">
+      <div class="tips-title">// Conseils de sécurité</div>
+      <ul class="tips-list" id="tipsList">
+        <li>Entrez un mot de passe pour voir les conseils personnalisés.</li>
+      </ul>
+    </div>
+  </div><!-- end card -->
+
+  <footer>
+    ◈ Toute l'analyse est effectuée localement dans votre navigateur ◈ Zero data sent ◈
+  </footer>
+</div><!-- end wrapper -->
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  Toute l'arithmétique de brute-force se fait en log10
+//  pour éviter les débordements flottants de JS (MAX_SAFE_INT)
+// ════════════════════════════════════════════════════════════
+
+// ── Taille du pool de caractères ────────────────────────────
+function charPool(pw) {
+  let n = 0;
+  if (/[a-z]/.test(pw)) n += 26;
+  if (/[A-Z]/.test(pw)) n += 26;
+  if (/[0-9]/.test(pw)) n += 10;
+  if (/[^a-zA-Z0-9]/.test(pw)) n += 32;
+  return n || 1;
+}
+
+// ── Entropie en bits ─────────────────────────────────────────
+function entropyBits(pw) {
+  return pw.length * Math.log2(charPool(pw));
+}
+
+// ── log10 du nombre de combinaisons ─────────────────────────
+// log10(pool^len) = len * log10(pool)  — jamais d'overflow
+function log10combos(pw) {
+  return pw.length * Math.log10(charPool(pw));
+}
+
+// ── Formatage du temps depuis log10(secondes) ───────────────
+function formatLog10Secs(L) {
+  // Seuils exacts en log10(secondes)
+  const L_YEAR  = Math.log10(3.154e7); // 7.499
+  const L_MONTH = Math.log10(2.628e6); // 6.420
+  const L_DAY   = Math.log10(86400);   // 4.937
+  const L_HOUR  = Math.log10(3600);    // 3.556
+  const L_MIN   = Math.log10(60);      // 1.778
+
+  if (L < 0) return "< 1 seconde";
+
+  // Années (potentiellement astronomiques)
+  if (L >= L_YEAR) {
+    const lv = L - L_YEAR; // log10 du nombre d'années
+    if (lv >= 15) return `~10^${Math.round(lv)} années`;
+    const val = Math.pow(10, lv);
+    if (val >= 1e12) return `${(val/1e12).toFixed(1)} billion d'années`;
+    if (val >= 1e9)  return `${(val/1e9).toFixed(1)} milliard d'années`;
+    if (val >= 1e6)  return `${(val/1e6).toFixed(1)} million d'années`;
+    if (val >= 1e3)  return `${(val/1e3).toFixed(0)} mille années`;
+    return `${val.toFixed(1)} années`;
+  }
+  if (L >= L_MONTH) {
+    const val = Math.pow(10, L - L_MONTH);
+    return `${val.toFixed(1)} mois`;
+  }
+  if (L >= L_DAY) {
+    const val = Math.pow(10, L - L_DAY);
+    return `${val.toFixed(1)} jours`;
+  }
+  if (L >= L_HOUR) {
+    const val = Math.pow(10, L - L_HOUR);
+    return `${val.toFixed(1)} heures`;
+  }
+  if (L >= L_MIN) {
+    const val = Math.pow(10, L - L_MIN);
+    return `${val.toFixed(1)} minutes`;
+  }
+  const val = Math.pow(10, L);
+  return `${val.toFixed(1)} secondes`;
+}
+
+// ── Couleur selon le log10 des secondes ─────────────────────
+function colorL(L) {
+  if (L <  1.78) return "#ff2244"; // < 1 min
+  if (L <  3.56) return "#ff5500"; // < 1h
+  if (L <  4.94) return "#ff8c00"; // < 1j
+  if (L <  6.42) return "#ffe135"; // < 1 mois
+  if (L <  7.50) return "#a8d800"; // < 1 an
+  if (L < 10.50) return "#39ff14"; // < 100 ans
+  return "#00f5ff";
+}
+
+// ── Score (0-7) ──────────────────────────────────────────────
+function score(pw) {
+  let s = 0;
+  if (pw.length >= 8)  s++;
+  if (pw.length >= 12) s++;
+  if (pw.length >= 16) s++;
+  if (/[A-Z]/.test(pw)) s++;
+  if (/[a-z]/.test(pw)) s++;
+  if (/[0-9]/.test(pw)) s++;
+  if (/[^a-zA-Z0-9]/.test(pw)) s++;
+  return Math.min(s, 7);
+}
+
+const LEVELS = [
+  { label:"Très Faible", color:"#ff2244", pct:10  },
+  { label:"Faible",      color:"#ff5500", pct:20  },
+  { label:"Médiocre",    color:"#ff8c00", pct:35  },
+  { label:"Moyen",       color:"#ffe135", pct:50  },
+  { label:"Correct",     color:"#a8d800", pct:65  },
+  { label:"Bon",         color:"#39ff14", pct:80  },
+  { label:"Fort",        color:"#00f5ff", pct:100 },
+];
+
+// ── Conseils ─────────────────────────────────────────────────
+function tips(pw) {
+  const t = [];
+  if (pw.length < 8)         t.push("Allongez à au moins 8 caractères.");
+  if (pw.length < 16)        t.push(`Ajouter ${16-pw.length} caractères de plus renforcerait fortement l'entropie.`);
+  if (!/[A-Z]/.test(pw))    t.push("Ajoutez une lettre majuscule (A-Z).");
+  if (!/[a-z]/.test(pw))    t.push("Ajoutez une lettre minuscule (a-z).");
+  if (!/[0-9]/.test(pw))    t.push("Insérez un chiffre (0-9).");
+  if (!/[^a-zA-Z0-9]/.test(pw)) t.push("Un caractère spécial (!@#…) multiplie l'espace de clés par 32.");
+  if (/(.)\1{2,}/.test(pw)) t.push("Évitez les caractères répétés (ex: \"aaa\").");
+  if (t.length === 0) {
+    t.push("Excellent ! Toutes les bonnes pratiques sont respectées.");
+    t.push("Stockez-le dans un gestionnaire (Bitwarden, 1Password…).");
+  }
+  return t;
+}
+
+// ── DOM ──────────────────────────────────────────────────────
+const $pw      = document.getElementById("pwInput");
+const $bar     = document.getElementById("scoreBar");
+const $lbl     = document.getElementById("scoreLabel");
+const $crit    = {
+  length:  document.getElementById("c-length"),
+  upper:   document.getElementById("c-upper"),
+  lower:   document.getElementById("c-lower"),
+  digit:   document.getElementById("c-digit"),
+  special: document.getElementById("c-special"),
+  long:    document.getElementById("c-long"),
+};
+const $bfCards = {
+  online:  document.getElementById("bf-online"),
+  offline: document.getElementById("bf-offline"),
+  gpu:     document.getElementById("bf-gpu"),
+};
+const $ks   = document.getElementById("keyspace");
+const $ent  = document.getElementById("entropy");
+const $pool = document.getElementById("charpool");
+const $tips = document.getElementById("tipsList");
+
+function setCrit(el, ok) {
+  el.classList.toggle("ok",   ok);
+  el.classList.toggle("fail", !ok);
+  el.querySelector(".icon").textContent = ok ? "✅" : "❌";
+}
+
+// Vitesses : log10(hash/s)
+const SPEEDS = [
+  { key:"online",  log10speed: 3  },
+  { key:"offline", log10speed: 9  },
+  { key:"gpu",     log10speed: 12 },
+];
+
+function update() {
+  const pw = $pw.value;
+
+  setCrit($crit.length,  pw.length >= 8);
+  setCrit($crit.upper,   /[A-Z]/.test(pw));
+  setCrit($crit.lower,   /[a-z]/.test(pw));
+  setCrit($crit.digit,   /[0-9]/.test(pw));
+  setCrit($crit.special, /[^a-zA-Z0-9]/.test(pw));
+  setCrit($crit.long,    pw.length >= 16);
+
+  if (!pw) {
+    $bar.style.width = "0%";
+    $bar.style.background = "var(--dim)";
+    $lbl.textContent = "—"; $lbl.style.color = "var(--dim)";
+    ["online","offline","gpu"].forEach(k => {
+      document.getElementById("t-"+k).textContent = "—";
+      $bfCards[k].style.borderColor = "";
+    });
+    $ks.textContent = $ent.textContent = $pool.textContent = "—";
+    $tips.innerHTML = "<li>Entrez un mot de passe pour voir les conseils.</li>";
+    return;
+  }
+
+  // Score
+  const sc = score(pw);
+  const lv = LEVELS[Math.max(0, sc - 1)];
+  $bar.style.width      = lv.pct + "%";
+  $bar.style.background = lv.color;
+  $lbl.textContent      = lv.label;
+  $lbl.style.color      = lv.color;
+
+  // Brute-force (tout en log10)
+  const LC = log10combos(pw);          // log10(pool^len)
+  const LOG2 = Math.log10(2);          // ≈ 0.301  (division par 2 pour moyenne)
+
+  for (const { key, log10speed } of SPEEDS) {
+    // log10(secondes moyennes) = log10(combos/2) - log10(speed)
+    const L = LC - LOG2 - log10speed;
+    const el   = document.getElementById("t-" + key);
+    const card = $bfCards[key];
+    el.textContent     = formatLog10Secs(L);
+    const col          = colorL(L);
+    el.style.color     = col;
+    card.style.borderColor = col + "55";
+  }
+
+  // Métadonnées
+  const lc = LC;
+  $ks.textContent   = lc >= 15 ? `~10^${Math.round(lc)}` : Math.round(Math.pow(10,lc)).toLocaleString();
+  $ent.textContent  = entropyBits(pw).toFixed(1);
+  $pool.textContent = charPool(pw) + " symboles";
+
+  // Conseils
+  $tips.innerHTML = tips(pw).map(t => `<li class="show">${t}</li>`).join("");
+}
+
+document.getElementById("eyeBtn").addEventListener("click", () => {
+  $pw.type = $pw.type === "password" ? "text" : "password";
+});
+
+$pw.addEventListener("input", update);
+update();
+</script>
+</body>
+</html>
