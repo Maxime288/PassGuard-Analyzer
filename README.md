@@ -1,6 +1,9 @@
 # 🛡️ PassGuard-Analyzer
 
-Un outil léger et performant d'analyse de la complexité des mots de passe, entièrement exécuté côté client. Ce projet permet aux utilisateurs de vérifier la robustesse de leurs identifiants en temps réel.
+Un outil léger et performant d'analyse de la complexité des mots de passe, entièrement exécuté côté client.
+
+## 🌐 Lien vers la démo
+Vous pouvez tester l'outil en ligne ici : [PassGuard-Analyzer (Render)](https://passguard-analyzer.onrender.com)
 
 ## 🚀 À propos du projet
 Développé pour démontrer les bonnes pratiques de sécurité web, **PassGuard-Analyzer** utilise des expressions régulières (Regex) pour évaluer instantanément la force d'un mot de passe lors de la saisie.
@@ -27,12 +30,6 @@ Dans un scénario réel, le temps de cassage dépend de nombreux facteurs variab
 3. L'algorithme de hashage utilisé côté serveur.
 
 Cet outil est destiné à des fins **éducatives et de sensibilisation**.
-
-## 🚀 Déploiement
-Ce projet est compatible avec **GitHub Pages**.
-1. Activez GitHub Pages dans les paramètres de votre dépôt.
-2. Choisissez la branche `main` (ou `master`).
-3. Votre outil sera accessible via votre URL GitHub Pages.
 
 ---
 *Projet réalisé par [Maxime288](https://github.com/Maxime288)*
